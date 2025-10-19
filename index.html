@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pushup Tracker</title>
+  <title>Exercise Tracker</title>
   <link rel="apple-touch-icon" sizes="180x180" href="./favicons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicons/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="./favicons/favicon-16x16.png">
@@ -14,10 +14,10 @@
 
   <!-- Open graph meta tags -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Pushups - Tracker & Counter">
+  <meta property="og:title" content="Exercise Tracker & Counter">
   <meta property="og:url" content="https://polarity.productions/pushups/">
   <meta property="og:image" content="https://polarity.productions/pushups/assets/Pushups.jpg">
-  <meta property="og:description" content="Track your daily push-ups with your smartphone camera. No login, no subscription, no hidden costs, no ads, and secure local data storage in your browser. Open source and free forever! Use online or download for your own server.">
+  <meta property="og:description" content="Track your daily exercises with your smartphone camera. No login, no subscription, no hidden costs, no ads, and secure local data storage in your browser. Open source and free forever! Use online or download for your own server.">
 
   <style>
     :root {
@@ -70,6 +70,52 @@
       max-width: 780px;
       margin: 0 auto
     }
+
+    /* Added exercise selector styles */
+    .exercise-selector {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .exercise-selector label {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .exercise-selector select {
+      flex: 1;
+      min-width: 150px;
+      background: #1a1f2d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .exercise-selector select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .exercise-selector button {
+      padding: 10px 16px;
+      font-size: 14px;
+      background: #18311f;
+      border-color: #23452a;
+      color: var(--accent);
+    }
+    /* </CHANGE> */
 
     .counter-panel {
       background: var(--panel);
@@ -346,11 +392,25 @@
 </head>
 <body>
   <header>
-    <h1>Pushup Tracker</h1>
-    <p>Put your phone on the floor. Each time your face gets close to the camera, it counts one pushup.</p>
+    <h1>Exercise Tracker</h1>
+    <p>Put your phone in a spot where the camera will see, and then not see your face for each rep. Each time your face gets close to the camera, it counts one rep.</p>
   </header>
 
   <main>
+    <!-- Added exercise selector UI -->
+    <div class="exercise-selector">
+      <label for="exerciseSelect">Exercise:</label>
+      <select id="exerciseSelect">
+        <option value="pushups">Pushups</option>
+        <option value="pullups">Pullups</option>
+        <option value="squats">Squats</option>
+        <option value="situps">Situps</option>
+        <option value="burpees">Burpees</option>
+      </select>
+      <button id="addExerciseBtn" title="Add custom exercise">+ Add Custom</button>
+    </div>
+    <!-- </CHANGE> -->
+
     <div class="counter-panel">
       <div class="count">
         <div id="countVal" class="value">0</div>
@@ -383,7 +443,7 @@
         <div class="status">
           <div>Detector: <span id="detectorType" class="chip">—</span></div>
           <div>State: <span id="stateChip" class="chip">idle</span></div>
-          <div>Hint: if camera doesn’t start, open this page over HTTPS or on localhost.</div>
+          <div>Hint: if camera doesn't start, open this page over HTTPS or on localhost.</div>
         </div>
       </div>
     </div>
@@ -404,8 +464,10 @@
 
   <script>
   ;(() => {
-    // Storage keys
-    const STORE_KEY = 'pushups.v1'
+    const STORE_KEY = 'exercises.v2'
+    const EXERCISES_KEY = 'exercises.list'
+    let currentExercise = 'pushups'
+    // </CHANGE>
 
     // UI elements
     const countEl = document.getElementById('countVal')
@@ -422,6 +484,10 @@
     const newSessionBtn = document.getElementById('newSessionBtn')
     const endSessionBtn = document.getElementById('endSessionBtn')
     const sessionsListEl = document.getElementById('sessionsList')
+    
+    const exerciseSelect = document.getElementById('exerciseSelect')
+    const addExerciseBtn = document.getElementById('addExerciseBtn')
+    // </CHANGE>
 
     // App state
     const data = loadData()
@@ -478,6 +544,10 @@
       return Promise.reject(new Error('getUserMedia not supported'))
     }
 
+    loadExerciseList()
+    updateExerciseSelect()
+    // </CHANGE>
+
     // Init UI
     updateCountUI()
     renderWeek()
@@ -509,6 +579,24 @@
     cameraBtn.addEventListener('click', () => toggleCamera())
     newSessionBtn.addEventListener('click', () => startNewSession())
     endSessionBtn.addEventListener('click', () => endActiveSession())
+    
+    exerciseSelect.addEventListener('change', (e) => {
+      currentExercise = e.target.value
+      activeSessionId = null // Reset active session when switching exercises
+      updateCountUI()
+      renderSessions()
+      renderWeek()
+    })
+
+    addExerciseBtn.addEventListener('click', () => {
+      const name = window.prompt('Enter custom exercise name:')
+      if (name && name.trim()) {
+        const exerciseId = name.trim().toLowerCase().replace(/\s+/g, '-')
+        addCustomExercise(exerciseId, name.trim())
+      }
+    })
+    // </CHANGE>
+
     sessionsListEl.addEventListener('click', e => {
       const btn = e.target.closest('button.del')
       if (!btn) return
@@ -718,6 +806,7 @@
         return {}
       }
     }
+    // </CHANGE>
 
     function saveData () {
       try {
@@ -727,14 +816,70 @@
       }
     }
 
+    function loadExerciseList () {
+      try {
+        const raw = window.localStorage.getItem(EXERCISES_KEY)
+        if (!raw) {
+          // Initialize with default exercises
+          const defaults = [
+            { id: 'pushups', name: 'Pushups' },
+            { id: 'pullups', name: 'Pullups' },
+            { id: 'squats', name: 'Squats' },
+            { id: 'situps', name: 'Situps' },
+            { id: 'burpees', name: 'Burpees' }
+          ]
+          window.localStorage.setItem(EXERCISES_KEY, JSON.stringify(defaults))
+          return defaults
+        }
+        return JSON.parse(raw)
+      } catch (e) {
+        return []
+      }
+    }
+
+    function saveExerciseList (list) {
+      try {
+        window.localStorage.setItem(EXERCISES_KEY, JSON.stringify(list))
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function addCustomExercise (id, name) {
+      const list = loadExerciseList()
+      if (list.find(ex => ex.id === id)) {
+        window.alert('Exercise already exists!')
+        return
+      }
+      list.push({ id, name })
+      saveExerciseList(list)
+      updateExerciseSelect()
+      exerciseSelect.value = id
+      currentExercise = id
+      updateCountUI()
+      renderSessions()
+      renderWeek()
+    }
+
+    function updateExerciseSelect () {
+      const list = loadExerciseList()
+      exerciseSelect.innerHTML = list.map(ex => 
+        `<option value="${ex.id}">${ex.name}</option>`
+      ).join('')
+      exerciseSelect.value = currentExercise
+    }
+    // </CHANGE>
+
     function getTodayCount () {
       const k = todayKey()
-      const dayObj = data[k]
+      if (!data[currentExercise]) return 0
+      const dayObj = data[currentExercise][k]
       if (dayObj == null) return 0
       if (typeof dayObj === 'number') return dayObj
       if (dayObj && Array.isArray(dayObj.sessions)) return dayObj.sessions.reduce((a, s) => a + (s.count || 0), 0)
       return 0
     }
+    // </CHANGE>
 
     function modifyToday (delta) {
       if (!Number.isFinite(delta) || delta === 0) return
@@ -749,7 +894,9 @@
     function resetToday () {
       if (!window.confirm('Reset ALL sessions for today?')) return
       const k = todayKey()
-      data[k] = { sessions: [] }
+      if (!data[currentExercise]) data[currentExercise] = {}
+      data[currentExercise][k] = { sessions: [] }
+      // </CHANGE>
       activeSessionId = null
       saveData()
       updateCountUI()
@@ -797,14 +944,41 @@
 
     // ----- Sessions Logic -----
     function migrateLegacy () {
-      for (const key in data) {
-        if (typeof data[key] === 'number') {
-          const n = data[key]
-              ;(data[key] = { sessions: [legacySession(n)] })
+      // Check if we need to migrate from old v1 format
+      const oldKey = 'pushups.v1'
+      try {
+        const oldRaw = window.localStorage.getItem(oldKey)
+        if (oldRaw) {
+          const oldData = JSON.parse(oldRaw)
+          // Migrate old pushups data to new structure
+          if (!data.pushups) data.pushups = {}
+          for (const key in oldData) {
+            if (typeof oldData[key] === 'number') {
+              data.pushups[key] = { sessions: [legacySession(oldData[key])] }
+            } else {
+              data.pushups[key] = oldData[key]
+            }
+          }
+          saveData()
+          // Remove old key
+          window.localStorage.removeItem(oldKey)
+        }
+      } catch (e) {
+        // ignore migration errors
+      }
+
+      // Migrate any remaining number values in current structure
+      for (const exercise in data) {
+        for (const key in data[exercise]) {
+          if (typeof data[exercise][key] === 'number') {
+            const n = data[exercise][key]
+            data[exercise][key] = { sessions: [legacySession(n)] }
+          }
         }
       }
       saveData()
     }
+    // </CHANGE>
 
     function legacySession (count) {
       const ts = new Date().toISOString()
@@ -812,10 +986,12 @@
     }
 
     function ensureDayObj (k) {
-      if (!data[k]) data[k] = { sessions: [] }
-      if (!Array.isArray(data[k].sessions)) data[k].sessions = []
-      return data[k]
+      if (!data[currentExercise]) data[currentExercise] = {}
+      if (!data[currentExercise][k]) data[currentExercise][k] = { sessions: [] }
+      if (!Array.isArray(data[currentExercise][k].sessions)) data[currentExercise][k].sessions = []
+      return data[currentExercise][k]
     }
+    // </CHANGE>
 
     function ensureActiveSession () {
       const k = todayKey()
@@ -881,12 +1057,14 @@
     }
 
     function dayTotal (k) {
-      const v = data[k]
+      if (!data[currentExercise]) return 0
+      const v = data[currentExercise][k]
       if (v == null) return 0
       if (typeof v === 'number') return v
       if (Array.isArray(v.sessions)) return v.sessions.reduce((a, s) => a + (s.count || 0), 0)
       return 0
     }
+    // </CHANGE>
 
     function saveTodaySessions () {
       saveData()
