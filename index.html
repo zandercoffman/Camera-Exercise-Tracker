@@ -117,6 +117,66 @@
     }
     /* </CHANGE> */
 
+    /* Added sensitivity slider styles */
+    .sensitivity-control {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .sensitivity-control label {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .sensitivity-control input[type="range"] {
+      flex: 1;
+      min-width: 150px;
+      height: 6px;
+      border-radius: 3px;
+      background: #1a1f2d;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .sensitivity-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--bg);
+    }
+
+    .sensitivity-control input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--bg);
+    }
+
+    .sensitivity-control .value-display {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text);
+      min-width: 45px;
+      text-align: right;
+    }
+    /* </CHANGE> */
+
     .counter-panel {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -393,7 +453,7 @@
 <body>
   <header>
     <h1>Exercise Tracker</h1>
-    <p>Put your phone in a spot where the camera will see, and then not see your face for each rep. Each time your face gets close to the camera, it counts one rep.</p>
+    <p>Put your phone on the floor. Each time your face gets close to the camera, it counts one rep.</p>
   </header>
 
   <main>
@@ -408,6 +468,14 @@
         <option value="burpees">Burpees</option>
       </select>
       <button id="addExerciseBtn" title="Add custom exercise">+ Add Custom</button>
+    </div>
+    <!-- </CHANGE> -->
+
+    <!-- Added sensitivity slider control -->
+    <div class="sensitivity-control">
+      <label for="sensitivitySlider">Camera Sensitivity:</label>
+      <input type="range" id="sensitivitySlider" min="0.5" max="2.0" step="0.1" value="1.0">
+      <span class="value-display" id="sensitivityValue">1.0x</span>
     </div>
     <!-- </CHANGE> -->
 
@@ -466,7 +534,9 @@
   ;(() => {
     const STORE_KEY = 'exercises.v2'
     const EXERCISES_KEY = 'exercises.list'
+    const SENSITIVITY_KEY = 'camera.sensitivity'
     let currentExercise = 'pushups'
+    let sensitivity = loadSensitivity()
     // </CHANGE>
 
     // UI elements
@@ -487,6 +557,8 @@
     
     const exerciseSelect = document.getElementById('exerciseSelect')
     const addExerciseBtn = document.getElementById('addExerciseBtn')
+    const sensitivitySlider = document.getElementById('sensitivitySlider')
+    const sensitivityValue = document.getElementById('sensitivityValue')
     // </CHANGE>
 
     // App state
@@ -526,6 +598,7 @@
     // Thresholds for face size ratio based detection (with hysteresis)
     const NEAR_RATIO = 0.32
     const FAR_RATIO = 0.25
+    // </CHANGE> Base thresholds that will be adjusted by sensitivity
 
     // Camera support detection and polyfill
     const isSecure = (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -546,6 +619,8 @@
 
     loadExerciseList()
     updateExerciseSelect()
+    sensitivitySlider.value = sensitivity
+    sensitivityValue.textContent = sensitivity.toFixed(1) + 'x'
     // </CHANGE>
 
     // Init UI
@@ -594,6 +669,13 @@
         const exerciseId = name.trim().toLowerCase().replace(/\s+/g, '-')
         addCustomExercise(exerciseId, name.trim())
       }
+    })
+    // </CHANGE>
+
+    sensitivitySlider.addEventListener('input', (e) => {
+      sensitivity = parseFloat(e.target.value)
+      sensitivityValue.textContent = sensitivity.toFixed(1) + 'x'
+      saveSensitivity()
     })
     // </CHANGE>
 
@@ -708,8 +790,11 @@
         ctx.strokeRect(bb.x, bb.y, bb.width, bb.height)
 
         const ratio = bb.height / (video.videoHeight || 1)
-        near = ratio >= NEAR_RATIO
-        if (!near && prevNear && ratio >= FAR_RATIO) near = true // hysteresis keep-near
+        const adjustedNearRatio = NEAR_RATIO / sensitivity
+        const adjustedFarRatio = FAR_RATIO / sensitivity
+        near = ratio >= adjustedNearRatio
+        if (!near && prevNear && ratio >= adjustedFarRatio) near = true // hysteresis keep-near
+        // </CHANGE>
       }
 
       handleNearState(near)
@@ -745,11 +830,12 @@
       const span = Math.max(20, samp.maxL - samp.minL) // avoid divide by tiny
       const norm = (avg - samp.minL) / span // 0..1
 
-      // Heuristic: near when darker than 25% of seen range; hysteresis for stability
-      const nearTh = 0.25
-      const farTh = 0.40
+      // Heuristic: near when darker than threshold; adjust thresholds based on sensitivity
+      const nearTh = 0.25 * sensitivity
+      const farTh = 0.40 * sensitivity
       let near = norm <= nearTh
       if (!near && prevNear && norm <= farTh) near = true
+      // </CHANGE>
 
       // light overlay indicator
       const ctx = overlay.getContext('2d')
@@ -806,7 +892,6 @@
         return {}
       }
     }
-    // </CHANGE>
 
     function saveData () {
       try {
@@ -868,7 +953,6 @@
       ).join('')
       exerciseSelect.value = currentExercise
     }
-    // </CHANGE>
 
     function getTodayCount () {
       const k = todayKey()
@@ -879,7 +963,6 @@
       if (dayObj && Array.isArray(dayObj.sessions)) return dayObj.sessions.reduce((a, s) => a + (s.count || 0), 0)
       return 0
     }
-    // </CHANGE>
 
     function modifyToday (delta) {
       if (!Number.isFinite(delta) || delta === 0) return
@@ -978,7 +1061,6 @@
       }
       saveData()
     }
-    // </CHANGE>
 
     function legacySession (count) {
       const ts = new Date().toISOString()
@@ -991,7 +1073,6 @@
       if (!Array.isArray(data[currentExercise][k].sessions)) data[currentExercise][k].sessions = []
       return data[currentExercise][k]
     }
-    // </CHANGE>
 
     function ensureActiveSession () {
       const k = todayKey()
@@ -1064,7 +1145,6 @@
       if (Array.isArray(v.sessions)) return v.sessions.reduce((a, s) => a + (s.count || 0), 0)
       return 0
     }
-    // </CHANGE>
 
     function saveTodaySessions () {
       saveData()
@@ -1091,6 +1171,24 @@
     function genId () {
       return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4)
     }
+
+    function loadSensitivity () {
+      try {
+        const raw = window.localStorage.getItem(SENSITIVITY_KEY)
+        return raw ? parseFloat(raw) : 1.0
+      } catch (e) {
+        return 1.0
+      }
+    }
+
+    function saveSensitivity () {
+      try {
+        window.localStorage.setItem(SENSITIVITY_KEY, sensitivity.toString())
+      } catch (e) {
+        // ignore
+      }
+    }
+    // </CHANGE>
   })()
 
   </script>
